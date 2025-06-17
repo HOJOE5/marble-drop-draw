@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Engine, Render, World, Bodies, Body, Runner, Events } from 'matter-js';
 import { Button } from '@/components/ui/button';
@@ -23,12 +24,15 @@ const Index = () => {
   const renderRef = useRef<Render | null>(null);
   const runnerRef = useRef<Runner | null>(null);
   const ballsRef = useRef<Ball[]>([]);
+  const basketRef = useRef<Body | null>(null);
+  const hasWinnerRef = useRef<boolean>(false);
   
   const [inputText, setInputText] = useState('짱구*5\n짱아*10\n맹구*3\n철수*7');
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
   const [balls, setBalls] = useState<Ball[]>([]);
+  const [ballsStarted, setBallsStarted] = useState(false);
 
   // 색상 팔레트
   const colors = [
@@ -111,45 +115,126 @@ const Index = () => {
       })
     ];
 
-    // 선택 영역 (하단 중앙)
-    const selectionArea = Bodies.rectangle(width / 2, height - 50, 200, 20, {
+    // 바구니 생성 (U자 형태)
+    const basketWidth = 150;
+    const basketHeight = 40;
+    const basketX = width / 2;
+    const basketY = height - 80;
+    
+    // 바구니 바닥
+    const basketBottom = Bodies.rectangle(basketX, basketY + basketHeight/2, basketWidth, 10, {
       isStatic: true,
-      isSensor: true,
       render: { 
-        fillStyle: '#FFD93D',
-        strokeStyle: '#FFC107',
-        lineWidth: 3
+        fillStyle: '#8B4513',
+        strokeStyle: '#654321',
+        lineWidth: 2
+      }
+    });
+    
+    // 바구니 왼쪽 벽
+    const basketLeftWall = Bodies.rectangle(basketX - basketWidth/2, basketY, 10, basketHeight, {
+      isStatic: true,
+      render: { 
+        fillStyle: '#8B4513',
+        strokeStyle: '#654321',
+        lineWidth: 2
+      }
+    });
+    
+    // 바구니 오른쪽 벽
+    const basketRightWall = Bodies.rectangle(basketX + basketWidth/2, basketY, 10, basketHeight, {
+      isStatic: true,
+      render: { 
+        fillStyle: '#8B4513',
+        strokeStyle: '#654321',
+        lineWidth: 2
       }
     });
 
-    // 선택 영역에 식별자 추가
-    (selectionArea as any).isSelectionArea = true;
+    // 바구니에 식별자 추가
+    (basketBottom as any).isBasket = true;
+    (basketLeftWall as any).isBasket = true;
+    (basketRightWall as any).isBasket = true;
+    basketRef.current = basketBottom;
 
-    World.add(engine.world, [...walls, selectionArea]);
+    // 장애물 생성
+    const obstacles = [
+      // 왼쪽 상단 장애물
+      Bodies.rectangle(width * 0.2, height * 0.3, 80, 15, {
+        isStatic: true,
+        angle: Math.PI / 6,
+        render: { 
+          fillStyle: '#E53E3E',
+          strokeStyle: '#C53030',
+          lineWidth: 2
+        }
+      }),
+      // 오른쪽 상단 장애물
+      Bodies.rectangle(width * 0.8, height * 0.3, 80, 15, {
+        isStatic: true,
+        angle: -Math.PI / 6,
+        render: { 
+          fillStyle: '#E53E3E',
+          strokeStyle: '#C53030',
+          lineWidth: 2
+        }
+      }),
+      // 중앙 장애물
+      Bodies.rectangle(width * 0.5, height * 0.5, 100, 15, {
+        isStatic: true,
+        angle: Math.PI / 8,
+        render: { 
+          fillStyle: '#E53E3E',
+          strokeStyle: '#C53030',
+          lineWidth: 2
+        }
+      }),
+      // 왼쪽 하단 장애물
+      Bodies.rectangle(width * 0.25, height * 0.7, 60, 15, {
+        isStatic: true,
+        angle: -Math.PI / 4,
+        render: { 
+          fillStyle: '#E53E3E',
+          strokeStyle: '#C53030',
+          lineWidth: 2
+        }
+      }),
+      // 오른쪽 하단 장애물
+      Bodies.rectangle(width * 0.75, height * 0.7, 60, 15, {
+        isStatic: true,
+        angle: Math.PI / 4,
+        render: { 
+          fillStyle: '#E53E3E',
+          strokeStyle: '#C53030',
+          lineWidth: 2
+        }
+      })
+    ];
+
+    World.add(engine.world, [...walls, basketBottom, basketLeftWall, basketRightWall, ...obstacles]);
 
     engineRef.current = engine;
     renderRef.current = render;
     runnerRef.current = Runner.create();
 
-    // 충돌 감지 - ballsRef를 사용하여 실시간 데이터 접근
+    // 충돌 감지 - 바구니 안에 들어간 첫 번째 공이 당첨
     Events.on(engine, 'collisionStart', (event) => {
-      console.log('충돌 감지됨, 현재 공 개수:', ballsRef.current.length);
+      if (hasWinnerRef.current) return; // 이미 당첨자가 있으면 무시
       
       event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
         
-        // 선택 영역과의 충돌 확인
-        const isCollisionWithSelection = (bodyA as any).isSelectionArea || (bodyB as any).isSelectionArea;
+        // 바구니와의 충돌 확인
+        const isCollisionWithBasket = (bodyA as any).isBasket || (bodyB as any).isBasket;
         
-        if (isCollisionWithSelection && !winner) {
-          const ball = (bodyA as any).isSelectionArea ? bodyB : bodyA;
+        if (isCollisionWithBasket && !hasWinnerRef.current) {
+          const ball = (bodyA as any).isBasket ? bodyB : bodyA;
           const ballData = ballsRef.current.find(b => b.body === ball);
           
-          console.log('선택 영역 충돌 감지, 공 데이터:', ballData);
-          
           if (ballData) {
+            hasWinnerRef.current = true;
             setWinner(ballData.name);
-            toast.success(`🎉 당첨자: ${ballData.name}!`);
+            toast.success(`🏆 당첨자: ${ballData.name}!`);
             
             // 당첨 공 강조
             ball.render.fillStyle = '#FFD93D';
@@ -157,6 +242,11 @@ const Index = () => {
             ball.render.lineWidth = 5;
             
             console.log('당첨자 결정:', ballData.name);
+            
+            // 게임 종료
+            setTimeout(() => {
+              setIsRunning(false);
+            }, 2000);
           }
         }
       });
@@ -177,11 +267,11 @@ const Index = () => {
       
       for (let i = 0; i < participant.weight; i++) {
         const x = Math.random() * (width - 100) + 50;
-        const y = -50 - (i * 30);
+        const y = -100 - (Math.random() * 200); // 더 높은 위치에서 시작
         
-        const ball = Bodies.circle(x, y, 15, {
-          restitution: 0.6,
-          friction: 0.3,
+        const ball = Bodies.circle(x, y, 12, {
+          restitution: 0.7,
+          friction: 0.1,
           render: {
             fillStyle: color,
             strokeStyle: '#FFFFFF',
@@ -200,9 +290,9 @@ const Index = () => {
       }
     });
 
-    // ref와 state 모두 업데이트
     ballsRef.current = newBalls;
     setBalls(newBalls);
+    setBallsStarted(true);
     
     console.log('공 생성 완료, 총 개수:', newBalls.length);
   };
@@ -216,31 +306,32 @@ const Index = () => {
     setIsRunning(true);
     setWinner(null);
     setBalls([]);
+    setBallsStarted(false);
     ballsRef.current = [];
+    hasWinnerRef.current = false;
     
     initializePhysics();
     
     setTimeout(() => {
       createBalls();
     }, 500);
-
-    setTimeout(() => {
-      setIsRunning(false);
-    }, 5000);
   };
 
   const handleShuffle = () => {
-    if (!engineRef.current || ballsRef.current.length === 0) return;
+    if (!engineRef.current || ballsRef.current.length === 0 || ballsStarted) return;
     
+    const width = canvasRef.current?.offsetWidth || 800;
+    
+    // 공들의 위치를 다시 랜덤하게 배치 (떨어지기 전)
     ballsRef.current.forEach(ball => {
-      const forceMagnitude = 0.02;
-      Body.applyForce(ball.body, ball.body.position, {
-        x: (Math.random() - 0.5) * forceMagnitude,
-        y: -Math.random() * forceMagnitude
-      });
+      const newX = Math.random() * (width - 100) + 50;
+      const newY = -100 - (Math.random() * 200);
+      
+      Body.setPosition(ball.body, { x: newX, y: newY });
+      Body.setVelocity(ball.body, { x: 0, y: 0 });
     });
     
-    toast.info('공들을 섞었습니다!');
+    toast.info('공 위치를 섞었습니다!');
   };
 
   const handleShake = () => {
@@ -271,7 +362,9 @@ const Index = () => {
     setIsRunning(false);
     setWinner(null);
     setBalls([]);
+    setBallsStarted(false);
     ballsRef.current = [];
+    hasWinnerRef.current = false;
   };
 
   const totalWeight = participants.reduce((sum, p) => sum + p.weight, 0);
@@ -283,7 +376,7 @@ const Index = () => {
           <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 bg-gradient-to-r from-yellow-400 via-red-500 to-pink-500 bg-clip-text text-transparent">
             Marble Roulette
           </h1>
-          <p className="text-gray-300 text-lg">물리 시뮬레이션 기반 추첨 게임</p>
+          <p className="text-gray-300 text-lg">바구니에 들어간 첫 번째 공이 당첨!</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -341,9 +434,10 @@ const Index = () => {
                   </Button>
                   <Button 
                     onClick={handleShuffle}
-                    disabled={!isRunning || ballsRef.current.length === 0}
+                    disabled={!isRunning || ballsRef.current.length === 0 || ballsStarted}
                     variant="outline"
                     className="border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white"
+                    title="공이 떨어지기 전에만 사용 가능"
                   >
                     <Shuffle className="w-4 h-4 mr-2" />
                     Shuffle
@@ -375,7 +469,7 @@ const Index = () => {
             <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="text-white flex items-center justify-between">
-                  <span>🎯 추첨 시뮬레이션</span>
+                  <span>🎯 바구니 추첨 게임</span>
                   {winner && (
                     <div className="text-right">
                       <span className="text-2xl">🏆 당첨자: </span>
@@ -392,15 +486,21 @@ const Index = () => {
                   {!isRunning && balls.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center text-gray-400">
-                        <div className="text-6xl mb-4">🎲</div>
+                        <div className="text-6xl mb-4">🏀</div>
                         <p className="text-xl">Start 버튼을 눌러 추첨을 시작하세요!</p>
+                        <p className="text-sm mt-2">바구니에 들어간 첫 번째 공이 당첨자가 됩니다</p>
                       </div>
                     </div>
                   )}
                   
-                  {/* 선택 영역 표시 */}
-                  <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-2 rounded-full font-bold text-sm">
-                    🎯 선택 영역
+                  {/* 바구니 표시 */}
+                  <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-amber-600 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2">
+                    🧺 당첨 바구니
+                  </div>
+                  
+                  {/* 장애물 안내 */}
+                  <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-xs">
+                    🚧 장애물 주의
                   </div>
                 </div>
               </CardContent>
