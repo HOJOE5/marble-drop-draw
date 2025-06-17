@@ -1,10 +1,9 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Engine, Render, World, Bodies, Body, Runner, Events } from 'matter-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shuffle, Play, Shake } from 'lucide-react';
+import { Shuffle, Play, Move } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Participant {
@@ -333,7 +332,7 @@ const Index = () => {
                     variant="outline"
                     className="border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white"
                   >
-                    <Shake className="w-4 h-4 mr-2" />
+                    <Move className="w-4 h-4 mr-2" />
                     Shake
                   </Button>
                 </div>
