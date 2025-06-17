@@ -3,16 +3,16 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-// 저장소명이 "marble-drop-draw"니까 이걸 base로 설정
+// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: "/marble-drop-draw/", // ✅ GitHub Pages 경로를 위한 설정
+  base: mode === "development" ? "/" : "/marble-drop-draw/", // ✅ 로컬에서는 "/" 유지
   server: {
     host: "::",
     port: 8080,
   },
   plugins: [
     react(),
-    mode === 'development' && componentTagger(),
+    mode === "development" && componentTagger(),
   ].filter(Boolean),
   resolve: {
     alias: {
@@ -20,4 +20,3 @@ export default defineConfig(({ mode }) => ({
     },
   },
 }));
-
