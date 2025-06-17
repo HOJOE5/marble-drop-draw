@@ -22,6 +22,7 @@ const Index = () => {
   const engineRef = useRef<Engine | null>(null);
   const renderRef = useRef<Render | null>(null);
   const runnerRef = useRef<Runner | null>(null);
+  const ballsRef = useRef<Ball[]>([]);
   
   const [inputText, setInputText] = useState('짱구*5\n짱아*10\n맹구*3\n철수*7');
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -121,20 +122,32 @@ const Index = () => {
       }
     });
 
+    // 선택 영역에 식별자 추가
+    (selectionArea as any).isSelectionArea = true;
+
     World.add(engine.world, [...walls, selectionArea]);
 
     engineRef.current = engine;
     renderRef.current = render;
     runnerRef.current = Runner.create();
 
-    // 충돌 감지
+    // 충돌 감지 - ballsRef를 사용하여 실시간 데이터 접근
     Events.on(engine, 'collisionStart', (event) => {
+      console.log('충돌 감지됨, 현재 공 개수:', ballsRef.current.length);
+      
       event.pairs.forEach(pair => {
         const { bodyA, bodyB } = pair;
-        if (bodyA === selectionArea || bodyB === selectionArea) {
-          const ball = bodyA === selectionArea ? bodyB : bodyA;
-          const ballData = balls.find(b => b.body === ball);
-          if (ballData && !winner) {
+        
+        // 선택 영역과의 충돌 확인
+        const isCollisionWithSelection = (bodyA as any).isSelectionArea || (bodyB as any).isSelectionArea;
+        
+        if (isCollisionWithSelection && !winner) {
+          const ball = (bodyA as any).isSelectionArea ? bodyB : bodyA;
+          const ballData = ballsRef.current.find(b => b.body === ball);
+          
+          console.log('선택 영역 충돌 감지, 공 데이터:', ballData);
+          
+          if (ballData) {
             setWinner(ballData.name);
             toast.success(`🎉 당첨자: ${ballData.name}!`);
             
@@ -142,6 +155,8 @@ const Index = () => {
             ball.render.fillStyle = '#FFD93D';
             ball.render.strokeStyle = '#FFC107';
             ball.render.lineWidth = 5;
+            
+            console.log('당첨자 결정:', ballData.name);
           }
         }
       });
@@ -174,17 +189,22 @@ const Index = () => {
           }
         });
 
-        newBalls.push({
+        const ballData = {
           body: ball,
           name: participant.name,
           color
-        });
+        };
 
+        newBalls.push(ballData);
         World.add(engineRef.current!.world, ball);
       }
     });
 
+    // ref와 state 모두 업데이트
+    ballsRef.current = newBalls;
     setBalls(newBalls);
+    
+    console.log('공 생성 완료, 총 개수:', newBalls.length);
   };
 
   const handleStart = () => {
@@ -196,6 +216,7 @@ const Index = () => {
     setIsRunning(true);
     setWinner(null);
     setBalls([]);
+    ballsRef.current = [];
     
     initializePhysics();
     
@@ -209,9 +230,9 @@ const Index = () => {
   };
 
   const handleShuffle = () => {
-    if (!engineRef.current || balls.length === 0) return;
+    if (!engineRef.current || ballsRef.current.length === 0) return;
     
-    balls.forEach(ball => {
+    ballsRef.current.forEach(ball => {
       const forceMagnitude = 0.02;
       Body.applyForce(ball.body, ball.body.position, {
         x: (Math.random() - 0.5) * forceMagnitude,
@@ -223,9 +244,9 @@ const Index = () => {
   };
 
   const handleShake = () => {
-    if (!engineRef.current || balls.length === 0) return;
+    if (!engineRef.current || ballsRef.current.length === 0) return;
     
-    balls.forEach(ball => {
+    ballsRef.current.forEach(ball => {
       Body.applyForce(ball.body, ball.body.position, {
         x: (Math.random() - 0.5) * 0.01,
         y: (Math.random() - 0.5) * 0.01
@@ -250,6 +271,7 @@ const Index = () => {
     setIsRunning(false);
     setWinner(null);
     setBalls([]);
+    ballsRef.current = [];
   };
 
   const totalWeight = participants.reduce((sum, p) => sum + p.weight, 0);
@@ -319,7 +341,7 @@ const Index = () => {
                   </Button>
                   <Button 
                     onClick={handleShuffle}
-                    disabled={!isRunning || balls.length === 0}
+                    disabled={!isRunning || ballsRef.current.length === 0}
                     variant="outline"
                     className="border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white"
                   >
@@ -328,7 +350,7 @@ const Index = () => {
                   </Button>
                   <Button 
                     onClick={handleShake}
-                    disabled={!isRunning || balls.length === 0}
+                    disabled={!isRunning || ballsRef.current.length === 0}
                     variant="outline"
                     className="border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white"
                   >
